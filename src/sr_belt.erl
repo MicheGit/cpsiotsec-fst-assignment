@@ -1,4 +1,5 @@
 -module(sr_belt).
+-export([read_candy/1, load_candy/2, belt/2]).
 
 read_candy(BeltPid) ->
     Ref = make_ref(),
