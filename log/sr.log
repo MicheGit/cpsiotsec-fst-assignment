@@ -1,0 +1,21 @@
+2023-11-22T19:53:23.583071+00:00 error: Error in process <0.92.0> with exit value:, {undef,[{sr_sink,sink,[],[]}]}
+2023-11-22T19:54:41.104137+00:00 notice: maronn
+2023-11-22T19:59:31.971267+00:00 notice: maronn
+2023-11-22T19:59:41.582416+00:00 notice: lucarmine
+2023-11-22T19:59:53.909258+00:00 notice: inshallah
+2023-11-22T20:11:55.363501+00:00 error: Error in process <0.95.0> with exit value:, {undef,[{twin_env,replicate,[{<0.93.0>,#Ref<0.581470427.3141533701.98458>},{<0.94.0>,#Ref<0.581470427.3141533701.98459>}],[]}]}
+2023-11-22T20:16:30.054154+00:00 error: Error in process <0.95.0> with exit value:, {badarg,[{erlang,send,[{<0.93.0>,#Ref<0.1108866434.1531183108.64324>},sunflower],[{error_info,#{module => erl_erts_errors}}]},{twin_env,replicate,2,[{file,"src/twin_env.erl"},{line,7}]}]}
+2023-11-22T20:18:40.987126+00:00 notice: sunflower
+2023-11-22T20:18:40.987002+00:00 notice: sunflower
+2023-11-22T20:18:56.355457+00:00 notice: sunflowers
+2023-11-22T20:18:56.355457+00:00 notice: sunflowers
+2023-11-22T20:19:22.612688+00:00 notice: sunflowers
+2023-11-22T20:19:22.613221+00:00 notice: sunflowers
+2023-11-22T20:19:24.895762+00:00 notice: sunflowers
+2023-11-22T20:19:24.895882+00:00 notice: sunflowers
+2023-11-22T20:27:56.391942+00:00 notice: {accept,{candy,orange}}
+2023-11-22T20:27:56.391702+00:00 notice: {accept,{candy,orange}}
+2023-11-22T20:27:56.396777+00:00 notice: {accept,{candy,orange}}
+2023-11-22T20:28:58.777367+00:00 notice: {reject,{candy,lemon}}
+2023-11-22T20:28:58.777581+00:00 notice: {reject,{candy,lemon}}
+2023-11-22T20:28:58.777975+00:00 notice: {reject,{candy,lemon}}
