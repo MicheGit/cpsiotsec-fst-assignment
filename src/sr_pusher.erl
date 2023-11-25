@@ -14,10 +14,12 @@ push_candy(PusherPid, {candy, _} = Candy) ->
 
 % Waits for a flavor to exclude (or 'nothing'), then processes a given candy.
 pusher(Sink) ->
+    logger:info("[PUSHER PROC] Starting pusher process, awaiting for signal whether to exclude or include next"),
     Reject = receive
         exclude_next -> true;
         accept_next -> false
     end,
+    logger:info("[PUSHER PROC] The next candy will be excluded? ~p - Awaiting for the next candy", [Reject]),
     receive
         {candy, _} = Candy ->
             if 

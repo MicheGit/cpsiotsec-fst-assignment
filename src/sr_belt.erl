@@ -1,16 +1,17 @@
 -module(sr_belt).
--export([read_candy/1, load_candy/2, belt/2]).
+-export([read_flavor/1, load_candy/2, belt/2]).
 
-read_candy(BeltPid) ->
+read_flavor(BeltPid) ->
     Ref = make_ref(),
-    BeltPid ! {self(), Ref, read},
+    BeltPid ! {self(), Ref, read_flavor},
     receive
         {Ref, nothing} -> nothing;
         {Ref, {candy, Flavor}} -> Flavor
     end.
 
+% load_candy is a stimuli in S (in U* but not in Y*)
 load_candy(BeltPid, Flavor) ->
-    BeltPid ! {candy, Flavor}.
+    BeltPid ! {load_candy, {candy, Flavor}}.
 
 % The conveyor belt.
 % This process models a belt that has:
@@ -19,15 +20,26 @@ load_candy(BeltPid, Flavor) ->
 % - takes the candy to a pusher that decides its fate;
 % - accepts a new candy after dropping the last one.
 belt(PusherPid, Candy) ->
+    logger:info("[BELT PROC] Start with Candy = ~p", [Candy]),
+    logger:info("[BELT PROC] Awaiting for read"),
     receive
-        {SenderPid, Ref, read} -> SenderPid ! {Ref, Candy}
+        {SenderPid, Ref, read_flavor} -> SenderPid ! {Ref, Candy}
+    after 
+        500 -> continue
     end,
     case Candy of
-        {candy, _} -> sr_pusher:push_candy(PusherPid, Candy)
+        {candy, _} -> 
+            logger:info("[BELT PROC] Hello reader! There is ~p on the belt", [Candy]),
+            sr_pusher:push_candy(PusherPid, Candy);
+        nothing -> logger:info("[BELT PROC] Hello reader! There is no candy on me")
     end,
     receive
-        {candy, Flavor} -> belt(PusherPid, {candy, Flavor})
+        {load_candy, C} -> 
+            logger:debug("[BELT PROC] Got new Candy = ~p", [C]),
+            belt(PusherPid, C)
     after
-        100 -> belt(PusherPid, nothing)
+        100 -> 
+            logger:debug("[BELT PROC] No candy on the belt"),
+            belt(PusherPid, nothing)
     end.
 

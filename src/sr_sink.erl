@@ -3,6 +3,6 @@
 
 sink() ->
     receive
-        A -> logger:notice(lists:flatten(io_lib:format("~p",[A])))
+        A -> logger:warning("[SINK PROC] ~p",[A])
     end,
     sink().
