@@ -3,6 +3,6 @@
 
 sink() ->
     receive
-        A -> logger:warning("[SINK PROC] ~p",[A])
+        A -> logger:notice("[SINK PROC] ~p",[A])
     end,
     sink().

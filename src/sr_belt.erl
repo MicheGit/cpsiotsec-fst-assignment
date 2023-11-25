@@ -1,5 +1,5 @@
 -module(sr_belt).
--export([read_flavor/1, load_candy/2, belt/2]).
+-export([read_flavor/1, load_candy/2, belt/1]).
 
 read_flavor(BeltPid) ->
     Ref = make_ref(),
@@ -12,6 +12,8 @@ read_flavor(BeltPid) ->
 % load_candy is a stimuli in S (in U* but not in Y*)
 load_candy(BeltPid, Flavor) ->
     BeltPid ! {load_candy, {candy, Flavor}}.
+
+belt(PusherPid) -> belt(PusherPid, nothing).
 
 % The conveyor belt.
 % This process models a belt that has:

@@ -1,14 +1,25 @@
 -module(sr_env).
 -export([start_simulation/0]).
 
+replicate(Pid, Sink) ->
+    receive
+        A -> Pid ! A, Sink ! A
+    end,
+    replicate(Pid, Sink).
+
 init() ->
     Sink = spawn(sr_sink, sink, []),
     Pusher = spawn(sr_pusher, pusher, [Sink]),
-    PLC = spawn(sr_malicious_plc, plc, [Pusher]),
-    Belt = spawn(sr_belt, belt, [Pusher, nothing]),
-    MITM = spawn(sr_mitm, mitm, [Belt]),
-    spawn(sr_rfid_reader, rfid_reader, [MITM, PLC]),
-    [{mitm, MITM}, {belt, Belt}, {plc, PLC}].
+    RepPusher = spawn(fun() -> replicate(Pusher, Sink) end),
+    PLC = spawn(sr_malicious_plc, plc, [RepPusher]),
+    RepPLC = spawn(fun() -> replicate(PLC, Sink) end),
+    Belt = spawn(sr_belt, belt, [RepPusher]),
+    MITM = spawn(sr_mitm, mitm, []),
+    RepBelt = spawn(fun() -> replicate(Belt, Sink) end),
+    RFIDReader = spawn(sr_rfid_reader, rfid_reader, [MITM, RepPLC]),
+    RepRFIDReader = spawn(fun() -> replicate(RFIDReader, Sink) end),
+    MITM ! {RepRFIDReader, RepBelt},
+    [{mitm, MITM}, {belt, RepBelt}, {plc, RepPLC}].
 
 start_simulation() ->
     Env = init(),

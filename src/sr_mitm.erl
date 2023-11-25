@@ -1,9 +1,15 @@
 -module(sr_mitm).
--export([mitm/1]).
+-export([mitm/0]).
 
-mitm(BeltPid) ->
+mitm() ->
+    % For the first time, I need to know where to find the reader and the belt
+    receive {RFIDReaderPid, BeltPid} ->
+        mitm(RFIDReaderPid, BeltPid)
+    end.
+
+mitm(RFIDReaderPid, BeltPid) ->
     logger:debug("[MITM PROC] Awaiting for a message from the reader to the belt."),
-    receive {RFIDReaderPid, Ref, Body} -> 
+    receive {_, Ref, Body} -> 
         logger:debug("[MITM PROC] I've intercepted the read request, forwarding. Now I listen to response"),
         BeltPid ! {self(), Ref, Body},
         receive 
@@ -19,4 +25,4 @@ mitm(BeltPid) ->
             end
         end
     end,
-    mitm(BeltPid).
+    mitm(RFIDReaderPid, BeltPid).
