@@ -4,7 +4,7 @@
 init() ->
     Sink = spawn(sr_sink, sink, []),
     Pusher = spawn(sr_pusher, pusher, [Sink]),
-    PLC = spawn(sr_plc, plc, [Pusher]),
+    PLC = spawn(sr_malicious_plc, plc, [Pusher]),
     Belt = spawn(sr_belt, belt, [Pusher, nothing]),
     MITM = spawn(sr_mitm, mitm, [Belt]),
     spawn(sr_rfid_reader, rfid_reader, [MITM, PLC]),
@@ -30,9 +30,5 @@ simulation(Belt, PLC, MITM) ->
     timer:sleep(1000),
     sr_belt:load_candy(Belt, mou),
     timer:sleep(1000),
-    sr_belt:load_candy(Belt, orange),
-    timer:sleep(1000),
-    sr_belt:load_candy(Belt, cherry),
-    timer:sleep(1000),
-    sr_belt:load_candy(Belt, mou). 
+    simulation(Belt, PLC, MITM). 
     
