@@ -1,29 +1,22 @@
 -module(sr_mitm).
--export([mitm/2]).
+-export([mitm/1]).
 
-mitm(Behavior, BeltPid) ->
-    logger:debug("[MITM PROC] I'm behaving ~p. Awaiting for a message from the reader to the belt.", [Behavior]),
-    receive {RFIDReaderPid, Ref, Body}-> 
+mitm(BeltPid) ->
+    logger:debug("[MITM PROC] Awaiting for a message from the reader to the belt."),
+    receive {RFIDReaderPid, Ref, Body} -> 
         logger:debug("[MITM PROC] I've intercepted the read request, forwarding. Now I listen to response"),
         BeltPid ! {self(), Ref, Body},
-        receive {Ref, _} = B ->
-            case Behavior of
-                silent ->
-                    logger:debug("[MITM PROC] I'll be a good boy for now..."), 
-                    RFIDReaderPid ! B;
-                malicious ->
-                    logger:debug("[MITM PROC] Now I'll wait a packet to inject"), 
-                    receive
-                        {inject_packet, Substitute} -> 
-                            RFIDReaderPid ! {Ref, Substitute}
-                    end
+        receive 
+        {Ref, nothing} = B -> RFIDReaderPid ! B;
+        {Ref, _} = B ->
+            logger:debug("[MITM PROC] Now I'll wait a packet to inject"), 
+            receive
+                {inject_packet, Substitute} -> logger:debug("[MITM PROC] Got a packet ~p to inject over ~p!", [Substitute, B]), 
+                    RFIDReaderPid ! {Ref, Substitute}
+            after
+                100 -> logger:debug("[MITM PROC] Stop waiting, they'll find out"), 
+                    RFIDReaderPid ! B
             end
         end
     end,
-    logger:debug("[MITM PROC] Notify me how I should behave now."), 
-    NewBehavior = receive
-        {new_behavior, Val} -> Val
-    after
-        100 -> Behavior
-    end,
-    mitm(NewBehavior, BeltPid).
+    mitm(BeltPid).

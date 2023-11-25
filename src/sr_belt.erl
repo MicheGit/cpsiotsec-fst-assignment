@@ -35,11 +35,11 @@ belt(PusherPid, Candy) ->
     end,
     receive
         {load_candy, C} -> 
-            logger:debug("[BELT PROC] Got new Candy = ~p", [C]),
+            logger:info("[BELT PROC] Got new Candy = ~p", [C]),
             belt(PusherPid, C)
     after
         100 -> 
-            logger:debug("[BELT PROC] No candy on the belt"),
+            logger:info("[BELT PROC] No candy on the belt"),
             belt(PusherPid, nothing)
     end.
 
