@@ -13,5 +13,6 @@
     sr_rfid_reader, 
     sr_malicious_plc,
     id_env
-    ]}
+    ]},
+    {mod, {id_env, []}}
   ]}.
