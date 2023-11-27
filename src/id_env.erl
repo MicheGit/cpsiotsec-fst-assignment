@@ -24,7 +24,10 @@ replicate(Pid, Sink) ->
 
 check_replicate_help(Pid, Replicated, Expected) ->
     {Matched, NewReplicated, NewExpected} = receive
-    {replicated_message, A} -> match_queues([A|Replicated], Expected);
+    {replicated_message, A} -> case is_env_stimuli(A) of
+        true -> {{ok, A}, Replicated, Expected};
+        false -> match_queues([A|Replicated], Expected)
+    end;
     B -> match_queues(Replicated, [B|Expected])
     end,
     case Matched of
@@ -44,7 +47,7 @@ list_find(Pred, [X|XS]) -> case Pred(X) of
 match_queues(Repl, []) -> {none, Repl, []};
 match_queues([], Exp) -> {none, [], Exp};
 match_queues([R|RS], Exp) -> 
-    Result = list_find(fun(E) -> matches(E, R) end, Exp);
+    Result = list_find(fun(E) -> matches(E, R) end, Exp),
     case Result of
     {Something, ES} -> {Something, RS, ES};
     {nothing, Exp} -> 
@@ -53,35 +56,7 @@ match_queues([R|RS], Exp) ->
     end.
 
 
-check_replicate(Pid) ->
-    receive 
-    {replicated_message, A} ->
-        logger:debug("Spotted replicated_message ~p", [A]),
-        case is_env_stimuli(A) of
-            true -> 
-                logger:debug("~p is an environment stimuli", [A]),
-                Pid ! A; % should be replicated here, however in these cases replication = id
-            false -> 
-                logger:debug("~p is NOT an environment stimuli", [A]),
-                {ok, B, Discarded} = until_matches(A, []), %% otherwise, intrusion!
-                Pid ! B,
-                logger:debug("Discarded is ~p", Discarded),
-                lists:foreach(fun(M) -> logger:debug("Putting back ~p into queue", [M]), self() ! M end, Discarded) % puts back into queue discarded messages
-        end
-    end,
-    check_replicate(Pid).
-
-until_matches(A, Discarded) ->
-    receive
-    B -> 
-        logger:debug("Want to match ~p with ~p", [A, B]),
-        case matches(A, B) of
-            true -> logger:debug("Matched ~p with ~p", [A, B]), {ok, B, Discarded};
-            false -> logger:debug("Not matched ~p with ~p", [A, B]), until_matches(A, [B|Discarded])
-        end
-    after
-        1000 -> error(lists:flatten(io_lib:format("Intrusion detected! Message ~p was replicated but did't match with any in U^*", [A]))) % if after X seconds the message doesn't arrive, there is an intrusion
-    end.
+check_replicate(Pid) -> check_replicate_help(Pid, [], []).
                 
 
 spawn_twin(Module, Function, Args, TwinArgs) ->
@@ -104,7 +79,11 @@ init() ->
 start_simulation() ->
     Env = init(),
     timer:sleep(500),
+    {plc, PLC} = proplists:lookup(plc, Env),
+    sr_plc:exclude_flavor(PLC, strawberry),
     {belt, Belt} = proplists:lookup(belt, Env),
     sr_belt:load_candy(Belt, lemon),
+    {mitm, MITM} = proplists:lookup(mitm, Env),
+    MITM ! {inject_packet, {candy, strawberry}},
     receive quit -> exit(normal) end.
 
