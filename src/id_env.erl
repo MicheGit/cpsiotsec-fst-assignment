@@ -36,7 +36,7 @@ check_replicate_help(Pid, Replicated, Expected) ->
     end,
     check_replicate_help(Pid, NewReplicated, NewExpected).
 
-list_find(Pred, []) -> {nothing, []};
+list_find(_, []) -> {nothing, []};
 list_find(Pred, [X|XS]) -> case Pred(X) of
     true -> {X, XS};
     false -> 
@@ -60,19 +60,21 @@ check_replicate(Pid) -> check_replicate_help(Pid, [], []).
                 
 
 spawn_twin(Module, Function, Args, TwinArgs) ->
-    Main = spawn_link(Module, Function, Args),
-    Twin = spawn_link(Module, Function, TwinArgs),
+    MainTag = lists:flatten(io_lib:format("~p MAIN", [Module])),
+    TwinTag = lists:flatten(io_lib:format("~p TWIN", [Module])),
+    Main = spawn_link(Module, Function, [MainTag, Args]),
+    Twin = spawn_link(Module, Function, [TwinTag, TwinArgs]),
     Chck = spawn_link(fun() -> check_replicate(Twin) end),
     RepMain = spawn_link(fun() -> replicate(Main, Chck) end),
     {RepMain, Twin}.
 
 init() ->
     Sink = spawn_link(sr_sink, sink, []),
-    {PusherMain, PusherTwin} = spawn_twin(sr_pusher, pusher, [Sink], [Sink]),
-    {PLCMain, PLCTwin} = spawn_twin(sr_plc, plc, [PusherMain], [PusherTwin]),
-    {BeltMain, BeltTwin} = spawn_twin(sr_belt, belt, [PusherMain], [PusherTwin]),
+    {PusherMain, PusherTwin} = spawn_twin(sr_pusher, init, [{sink, Sink}], [{sink, Sink}]),
+    {PLCMain, PLCTwin} = spawn_twin(sr_plc, init, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
+    {BeltMain, BeltTwin} = spawn_twin(sr_belt, init, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
     MITM = spawn_link(sr_mitm, mitm, []),
-    {RFIDReaderMain, _} = spawn_twin(sr_rfid_reader, rfid_reader, [MITM, PLCMain], [BeltTwin, PLCTwin]),
+    {RFIDReaderMain, _} = spawn_twin(sr_rfid_reader, init, [{belt, MITM}, {plc, PLCMain}], [{belt, BeltTwin}, {plc, PLCTwin}]),
     MITM ! {RFIDReaderMain, BeltMain},
     [{mitm, MITM}, {belt, BeltMain}, {plc, PLCMain}].
 
@@ -83,7 +85,7 @@ start_simulation() ->
     sr_plc:exclude_flavor(PLC, strawberry),
     {belt, Belt} = proplists:lookup(belt, Env),
     sr_belt:load_candy(Belt, lemon),
-    {mitm, MITM} = proplists:lookup(mitm, Env),
-    MITM ! {inject_packet, {candy, strawberry}},
+    % {mitm, MITM} = proplists:lookup(mitm, Env),
+    % MITM ! {inject_packet, {candy, strawberry}},
     receive quit -> exit(normal) end.
 

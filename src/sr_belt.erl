@@ -1,5 +1,5 @@
 -module(sr_belt).
--export([read_flavor/1, load_candy/2, belt/1]).
+-export([read_flavor/1, load_candy/2, init/2]).
 
 read_flavor(BeltPid) ->
     Ref = make_ref(),
@@ -13,7 +13,9 @@ read_flavor(BeltPid) ->
 load_candy(BeltPid, Flavor) ->
     BeltPid ! {load_candy, {candy, Flavor}}.
 
-belt(PusherPid) -> belt(PusherPid, nothing).
+init(LogName, Args) ->
+    {pusher, PusherPid} = proplists:lookup(pusher, Args),
+    belt(LogName, PusherPid, nothing).
 
 % The conveyor belt.
 % This process models a belt that has:
@@ -21,9 +23,9 @@ belt(PusherPid) -> belt(PusherPid, nothing).
 % - can inform a RFID reader about the flavour of the candy on the belt;
 % - takes the candy to a pusher that decides its fate;
 % - accepts a new candy after dropping the last one.
-belt(PusherPid, Candy) ->
-    logger:info("[BELT PROC] Start with Candy = ~p", [Candy]),
-    logger:info("[BELT PROC] Awaiting for read"),
+belt(LogName, PusherPid, Candy) ->
+    logger:info("[~p] Start with Candy = ~p", [LogName, Candy]),
+    logger:info("[~p] Awaiting for read", [LogName]),
     receive
         {SenderPid, Ref, read_flavor} -> SenderPid ! {Ref, Candy}
     after 
@@ -31,17 +33,17 @@ belt(PusherPid, Candy) ->
     end,
     case Candy of
         {candy, _} -> 
-            logger:info("[BELT PROC] Hello reader! There is ~p on the belt", [Candy]),
+            logger:info("[~p] Hello reader! There is ~p on the belt", [LogName, Candy]),
             sr_pusher:push_candy(PusherPid, Candy);
-        nothing -> logger:info("[BELT PROC] Hello reader! There is no candy on me")
+        nothing -> logger:info("[~p] Hello reader! There is no candy on me", [LogName])
     end,
     receive
         {load_candy, C} -> 
-            logger:info("[BELT PROC] Got new Candy = ~p", [C]),
-            belt(PusherPid, C)
+            logger:info("[~p] Got new Candy = ~p", [LogName, C]),
+            belt(LogName, PusherPid, C)
     after
         100 -> 
-            logger:info("[BELT PROC] No candy on the belt"),
-            belt(PusherPid, nothing)
+            logger:info("[~p] No candy on the belt", [LogName]),
+            belt(LogName, PusherPid, nothing)
     end.
 
