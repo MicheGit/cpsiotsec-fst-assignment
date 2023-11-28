@@ -16,25 +16,26 @@ matches(A, A) -> true;
 matches({_, Ref1, A}, {_, Ref2, A}) -> is_reference(Ref1) andalso is_reference(Ref2);
 matches(_, _) -> false.
 
-replicate(Pid, Sink) ->
+replicate(Main, Twin, IntrusionDetection) ->
     receive
-        A -> Pid ! A, Sink ! {replicated_message, A}
+    A -> Main ! A, 
+        case is_env_stimuli(A) of
+            true -> Twin ! {env_stimuli, A}; % if it's a stimuli, replicate
+            false -> IntrusionDetection ! {main, A} % otherwise check for intrusion
+        end
     end,
-    replicate(Pid, Sink).
+    replicate(Main, Twin, IntrusionDetection).
 
-check_replicate_help(Pid, Replicated, Expected) ->
-    {Matched, NewReplicated, NewExpected} = receive
-    {replicated_message, A} -> case is_env_stimuli(A) of
-        true -> {{ok, A}, Replicated, Expected};
-        false -> match_queues([A|Replicated], Expected)
-    end;
-    B -> match_queues(Replicated, [B|Expected])
+check_replicate(Twin, IntrusionDetection) ->
+    receive
+    {env_stimuli, A} -> 
+        logger:notice("Check replicated environment stimuli ~p", [A]),
+        Twin ! A;
+    B -> 
+        logger:notice("Check forwarded twin message ~p", [B]),
+        IntrusionDetection ! {twin, B}
     end,
-    case Matched of
-        {ok, Value} -> Pid ! Value;
-        none -> ok
-    end,
-    check_replicate_help(Pid, NewReplicated, NewExpected).
+    check_replicate(Twin, IntrusionDetection).
 
 list_find(_, []) -> {nothing, []};
 list_find(Pred, [X|XS]) -> case Pred(X) of
@@ -42,6 +43,40 @@ list_find(Pred, [X|XS]) -> case Pred(X) of
     false -> 
         {Y, YS} = list_find(Pred, XS),
         {Y, [X|YS]}
+    end.
+
+
+intrusion_detection(LogName, AwaitingForCheck) ->
+    NewState = receive
+    {main, A} -> 
+        logger:notice("[ID ~p] Got message {main, ~p}", [LogName, A]),
+        Checker = spawn(fun() -> require_replica(LogName, A) end),
+        [Checker|AwaitingForCheck];
+    {twin, B} ->
+        logger:notice("[ID ~p] Got message {twin, ~p}", [LogName, B]),
+        lists:foreach(fun(Checker) -> Checker ! B end, AwaitingForCheck),
+        AwaitingForCheck
+    end,
+    intrusion_detection(LogName, NewState).
+
+require_replica(LogName, A) ->
+    Awaiter = spawn(fun() -> 
+        receive matched -> ok 
+        after 5000 -> logger:error("Intrusion detected! No match within 5 seconds for message ~p", [A])
+        end
+    end),
+    require_replica(LogName, A, Awaiter).
+
+require_replica(LogName, A, Awaiter) ->
+    receive
+    B -> case matches(A, B) of
+        true ->
+            logger:notice("[ID ~p] Succesfully ~p over ~p", [LogName, A, B]),
+            Awaiter ! matched;
+        false -> 
+            logger:notice("[ID ~p] Couldn't match ~p over ~p", [LogName, A, B]),
+            require_replica(A, Awaiter)
+        end
     end.
 
 match_queues(Repl, []) -> {none, Repl, []};
@@ -54,19 +89,17 @@ match_queues([R|RS], Exp) ->
         {Smth, RS1, ES} = match_queues(RS, Exp),
         {Smth, [R|RS1], ES}
     end.
-
-
-check_replicate(Pid) -> check_replicate_help(Pid, [], []).
                 
 
 spawn_twin(Module, Function, Args, TwinArgs) ->
+    IntrusionDetection = spawn_link(fun() -> intrusion_detection(Module, []) end),
     MainTag = lists:flatten(io_lib:format("~p MAIN", [Module])),
     TwinTag = lists:flatten(io_lib:format("~p TWIN", [Module])),
     Main = spawn_link(Module, Function, [MainTag, Args]),
     Twin = spawn_link(Module, Function, [TwinTag, TwinArgs]),
-    Chck = spawn_link(fun() -> check_replicate(Twin) end),
-    RepMain = spawn_link(fun() -> replicate(Main, Chck) end),
-    {RepMain, Twin}.
+    Chck = spawn_link(fun() -> check_replicate(Twin, IntrusionDetection) end),
+    RepMain = spawn_link(fun() -> replicate(Main, Chck, IntrusionDetection) end),
+    {RepMain, Chck}.
 
 init() ->
     Sink = spawn_link(sr_sink, sink, []),

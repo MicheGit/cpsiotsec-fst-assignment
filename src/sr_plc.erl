@@ -12,11 +12,11 @@ init(LogName, Args) ->
     plc(LogName, PusherPid, none).
 
 plc(LogName, PusherPid, ExcludingFlavor) ->
-    logger:info("[PLC PROC] User decided to exclude ~p. Awaiting for detection", [ExcludingFlavor]),
+    logger:info("[~p] User decided to exclude ~p. Awaiting for detection", [LogName, ExcludingFlavor]),
     receive {detect_candy, Flavor} -> 
-        logger:info("[PLC PROC] Starting plc process, awaiting for user exclusion"),
+        logger:info("[~p] Starting plc process, awaiting for user exclusion", [LogName]),
         NEF = get_last_exclude_flavor(ExcludingFlavor),
-        logger:info("[PLC PROC] User decided to exclude ~p and detected flavor is ~p", [NEF, Flavor]),
+        logger:info("[~p] User decided to exclude ~p and detected flavor is ~p", [LogName, NEF, Flavor]),
         case Flavor of
             NEF -> sr_pusher:exclude_next(PusherPid),
                 plc(LogName, PusherPid, none);
