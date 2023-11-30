@@ -44,3 +44,17 @@ in the log file located in `log/sr.log`.
 
 ## Simulating code replacement from an internal
 
+To simulate code replacement, start the environment as said above.
+
+Then, from the command line of `main@localhost` tell the Erlang vm to replace
+the code for the plc:
+
+```ErlangShell
+> c("malicious/sr_plc.erl").
+```
+
+This command will replace the PLC process to a malicious one, which causes to
+reject all the candies regardless of the flavour. The system will detect the
+anomaly.
+
+

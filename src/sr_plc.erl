@@ -1,5 +1,5 @@
 -module(sr_plc).
--export([detect_candy/2, exclude_flavor/2, init/2]).
+-export([detect_candy/2, exclude_flavor/2, init/2, plc/3]).
 
 detect_candy(PlcPid, Flavor) ->
     PlcPid ! {detect_candy, Flavor}.
@@ -20,9 +20,9 @@ plc(LogName, PusherPid, ExcludingFlavor) ->
         logger:info("[~p] User decided to exclude ~p and detected flavor is ~p", [LogName, NEF, Flavor]),
         case Flavor of
             NEF -> sr_pusher:exclude_next(PusherPid),
-                plc(LogName, PusherPid, none);
+                sr_plc:plc(LogName, PusherPid, none);
             _ -> sr_pusher:accept_next(PusherPid),
-                plc(LogName, PusherPid, NEF)
+                sr_plc:plc(LogName, PusherPid, NEF)
         end
     end.
 
