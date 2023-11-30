@@ -2,6 +2,7 @@
 -export([mitm/0]).
 
 mitm() ->
+    register(mitm_pid, self()),
     % For the first time, I need to know where to find the reader and the belt
     receive {RFIDReaderPid, BeltPid} ->
         mitm(RFIDReaderPid, BeltPid)

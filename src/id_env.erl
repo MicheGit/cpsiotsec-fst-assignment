@@ -60,6 +60,13 @@ match_queues([R|RS], Exp) ->
         {Smth, [R|RS1], ES}
     end.
 
+send_module(Node, Module) ->
+    {Module, Bin, File} = code:get_object_code(Module),
+    {ResL, BadNodes} = rpc:call(
+        Node, code, load_binary, [Module, File, Bin]),
+    logger:notice("Sent module ~p to ~p, result was ~p and badnodes ~p", [Module, Node, ResL, BadNodes]),
+    ok.
+
 
 intrusion_detection() ->
     receive
@@ -84,12 +91,18 @@ spawn_twin(Module, Function, Args, TwinArgs) ->
     RepMain = spawn_link(fun() -> replicate(Main, Chck) end),
     {RepMain, Chck}.
 
+configure() ->
+    net_kernel:connect_node(mitm@localhost),
+    send_module(mitm@localhost, sr_mitm),
+    ok.
+
+
 init() ->
     Sink = spawn_link(fun() -> intrusion_detection() end),
     {PusherMain, PusherTwin} = spawn_twin(sr_pusher, init, [{sink, Sink}], [{sink, Sink}]),
     {PLCMain, PLCTwin} = spawn_twin(sr_plc, init, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
     {BeltMain, BeltTwin} = spawn_twin(sr_belt, init, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
-    MITM = spawn_link(sr_mitm, mitm, []),
+    MITM = spawn(mitm@localhost, sr_mitm, mitm, []),
     {RFIDReaderMain, _} = spawn_twin(sr_rfid_reader, init, [{belt, MITM}, {plc, PLCMain}], [{belt, BeltTwin}, {plc, PLCTwin}]),
     MITM ! {RFIDReaderMain, BeltMain},
     [{mitm, MITM}, {belt, BeltMain}, {plc, PLCMain}].
@@ -99,6 +112,7 @@ init() ->
 %   lemon candies are actually bad, therefore they want
 %   to reject them all. 
 start_simulation() ->
+    configure(),
     Env = init(),
     {plc, PLC} = proplists:lookup(plc, Env),
     {belt, Belt} = proplists:lookup(belt, Env),
