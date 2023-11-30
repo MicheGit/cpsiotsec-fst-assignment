@@ -29,18 +29,6 @@ replicate(Main, Twin) ->
     end,
     replicate(Main, Twin).
 
-% TODO implementa delta time
-check_replicate(Twin) ->
-    receive
-    {env_stimuli, A} -> 
-        logger:debug("Check replicated environment stimuli ~p", [A]),
-        Twin ! A;
-    B -> 
-        logger:debug("Check forwarded twin message ~p", [B]),
-        Twin ! B
-    end,
-    check_replicate(Twin).
-
 list_find(_, []) -> {nothing, []};
 list_find(Pred, [X|XS]) -> case Pred(X) of
     true -> {X, XS};
@@ -82,28 +70,30 @@ intrusion_detection() ->
     end,
     intrusion_detection().
 
-spawn_twin(Module, Function, Args, TwinArgs) ->
+spawn_twin(ProcessPidName, Module, Function, Args, TwinArgs) ->
     MainTag = lists:flatten(io_lib:format("~p MAIN", [Module])),
     TwinTag = lists:flatten(io_lib:format("~p TWIN", [Module])),
-    Main = spawn_link(Module, Function, [MainTag, Args]),
-    Twin = spawn_link(Module, Function, [TwinTag, TwinArgs]),
-    Chck = spawn_link(fun() -> check_replicate(Twin) end),
-    RepMain = spawn_link(fun() -> replicate(Main, Chck) end),
+    spawn_link(Module, Function, [MainTag, Args]),
+    spawn(twin@localhost, Module, Function, [TwinTag, TwinArgs]),
+    Chck = spawn(twin@localhost, sr_twin, check_replicate, [ProcessPidName]),
+    RepMain = spawn_link(fun() -> replicate(ProcessPidName, Chck) end),
     {RepMain, Chck}.
 
 configure() ->
     net_kernel:connect_node(mitm@localhost),
     send_module(mitm@localhost, sr_mitm),
+    net_kernel:connect_node(twin@localhost),
+    lists:foreach(fun(E) -> send_module(twin@localhost, E) end, [sr_belt, sr_pusher, sr_plc, sr_rfid_reader, sr_twin]),
     ok.
 
 
 init() ->
     Sink = spawn_link(fun() -> intrusion_detection() end),
-    {PusherMain, PusherTwin} = spawn_twin(sr_pusher, init, [{sink, Sink}], [{sink, Sink}]),
-    {PLCMain, PLCTwin} = spawn_twin(sr_plc, init, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
-    {BeltMain, BeltTwin} = spawn_twin(sr_belt, init, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
+    {PusherMain, PusherTwin} = spawn_twin(pusher_pid, sr_pusher, init, [{sink, Sink}], [{sink, Sink}]),
+    {PLCMain, PLCTwin} = spawn_twin(plc_pid, sr_plc, init, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
+    {BeltMain, BeltTwin} = spawn_twin(belt_pid, sr_belt, init, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
     MITM = spawn(mitm@localhost, sr_mitm, mitm, []),
-    {RFIDReaderMain, _} = spawn_twin(sr_rfid_reader, init, [{belt, MITM}, {plc, PLCMain}], [{belt, BeltTwin}, {plc, PLCTwin}]),
+    {RFIDReaderMain, _} = spawn_twin(rfid_reader_pid, sr_rfid_reader, init, [{belt, MITM}, {plc, PLCMain}], [{belt, BeltTwin}, {plc, PLCTwin}]),
     MITM ! {RFIDReaderMain, BeltMain},
     [{mitm, MITM}, {belt, BeltMain}, {plc, PLCMain}].
 

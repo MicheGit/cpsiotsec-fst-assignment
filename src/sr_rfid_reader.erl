@@ -2,6 +2,7 @@
 -export([init/2]).
 
 init(LogName, Args) ->
+    register(rfid_reader_pid, self()),
     {belt, BeltPid} = proplists:lookup(belt, Args),
     {plc, PlcPid} = proplists:lookup(plc, Args),
     rfid_reader(LogName, BeltPid, PlcPid).

@@ -14,6 +14,7 @@ load_candy(BeltPid, Flavor) ->
     BeltPid ! {load_candy, {candy, Flavor}}.
 
 init(LogName, Args) ->
+    register(belt_pid, self()),
     {pusher, PusherPid} = proplists:lookup(pusher, Args),
     belt(LogName, PusherPid, nothing).
 

@@ -13,6 +13,7 @@ push_candy(PusherPid, {candy, _} = Candy) ->
     PusherPid ! Candy.
 
 init(LogName, Args) ->
+    register(pusher_pid, self()),
     {sink, Sink} = proplists:lookup(sink, Args),
     pusher(LogName, Sink).
 
