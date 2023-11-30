@@ -8,6 +8,7 @@ exclude_flavor(PlcPid, Flavor) ->
     PlcPid ! {exclude_flavor, Flavor}.
 
 init(LogName, Args) ->
+    register(plc_pid, self()),
     {pusher, PusherPid} = proplists:lookup(pusher, Args),
     plc(LogName, PusherPid, none).
 
