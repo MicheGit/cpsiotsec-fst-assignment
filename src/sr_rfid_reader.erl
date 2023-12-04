@@ -2,11 +2,12 @@
 -export([init/2]).
 
 init(LogName, Args) ->
-    register(rfid_reader_pid, self()),
     {belt, BeltPid} = proplists:lookup(belt, Args),
     {plc, PlcPid} = proplists:lookup(plc, Args),
     rfid_reader(LogName, BeltPid, PlcPid).
 
+% The RFID reader reads the flavor of the candy on the belt and then
+%   informs the PLC when it reads a candy.
 rfid_reader(LogName, BeltPid, PlcPid) ->
     logger:info("[~p] Starting up, reading Candy", [LogName]),
     Flavor = sr_belt:read_flavor(BeltPid),

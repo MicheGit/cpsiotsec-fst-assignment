@@ -5,19 +5,19 @@
 exclude_next(PusherPid) ->
     PusherPid ! exclude_next.
 
+% Commands the given pusher to accept the next candy it receives.
 accept_next(PusherPid) ->
     PusherPid ! accept_next.
 
-% Provides a candy to the given pusher
+% Drops a candy into the given pusher.
 push_candy(PusherPid, {candy, _} = Candy) ->
     PusherPid ! Candy.
 
 init(LogName, Args) ->
-    register(pusher_pid, self()),
     {sink, Sink} = proplists:lookup(sink, Args),
     pusher(LogName, Sink).
 
-% Waits for a flavor to exclude (or 'nothing'), then processes a given candy.
+% Waits for a flavor to exclude (or 'nothing'), then processes the pushed candy.
 pusher(LogName, Sink) ->
     logger:info("[~p] Starting pusher process, awaiting for signal whether to exclude or include next", [LogName]),
     Reject = receive

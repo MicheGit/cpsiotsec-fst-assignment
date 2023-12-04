@@ -1,6 +1,6 @@
 -module(id_env).
 -behaviour(application).
--export([init/0, start_simulation/0, start/2, stop/1, mitm_simulation/0]).
+-export([init/0, start_simulation/0, start/2, stop/1]).
 
 start(normal, _) -> spawn_link(fun() -> 
     start_simulation(), 
@@ -8,26 +8,37 @@ start(normal, _) -> spawn_link(fun() ->
     end);
 start(A, _) -> logger:error("Started simulation with ~p instead of normal", [A]).
 
-
 stop(ShutDownPid) -> ShutDownPid ! quit.
 
+% Checks if the passed message is \in S (so if it's in U* but not in Y*),
+%   i.e. if it's a stimuli coming outside the system. 
 is_env_stimuli({load_candy, _}) -> true;
 is_env_stimuli({exclude_flavor, _}) -> true;
 is_env_stimuli(_) -> false.
 
+% Checks if a message in the real environment is the same as another in the 
+%   twin environment. 
 matches(A, A) -> true;
 matches({_, Ref1, A}, {_, Ref2, A}) -> is_reference(Ref1) andalso is_reference(Ref2);
 matches(_, _) -> false.
 
-replicate(Main, Twin) ->
+replicate(MainPid, ProcessPidName, TwinPid) ->
+    register(ProcessPidName, self()),
+    replicate(MainPid, TwinPid).
+
+% This process will forward all the messages it receives
+%   to the Main PID process. Any message which is an 
+%   environment stimuli will be replicated to the Twin
+%   PID given.
+replicate(MainPid, TwinPid) ->
     receive
-    A -> Main ! A, 
+    A -> MainPid ! A, 
         case is_env_stimuli(A) of
-            true -> Twin ! {env_stimuli, A}; % if it's a stimuli, replicate
+            true -> TwinPid ! {env_stimuli, A}; % if it's a stimuli, replicate
             false -> ok
         end
     end,
-    replicate(Main, Twin).
+    replicate(MainPid, TwinPid).
 
 list_find(_, []) -> {nothing, []};
 list_find(Pred, [X|XS]) -> case Pred(X) of
@@ -48,6 +59,7 @@ match_queues([R|RS], Exp) ->
         {Smth, [R|RS1], ES}
     end.
 
+% Sends a compiled module to an erlang node.
 send_module(Node, Module) ->
     {Module, Bin, File} = code:get_object_code(Module),
     {ResL, BadNodes} = rpc:call(
@@ -55,7 +67,22 @@ send_module(Node, Module) ->
     logger:notice("Sent module ~p to ~p, result was ~p and badnodes ~p", [Module, Node, ResL, BadNodes]),
     ok.
 
+% Sends all needed modules to the mitm and twin nodes.
+configure() ->
+    net_kernel:connect_node(mitm@localhost),
+    send_module(mitm@localhost, sr_mitm),
+    net_kernel:connect_node(twin@localhost),
+    lists:foreach(fun(E) -> send_module(twin@localhost, E) end, [sr_belt, sr_pusher, sr_plc, sr_rfid_reader, sr_twin]),
+    ok.
 
+% A process running this function will expect two 
+%   subsequent messages matching between each other. 
+% If not, there might be:
+% - an intrusion
+% - a process in the real world processes a candy 
+%   having not finished to process the previous one.
+%   In that case, the component will receive two messages 
+%   from the twin environment. 
 intrusion_detection() ->
     receive
     A ->
@@ -70,30 +97,38 @@ intrusion_detection() ->
     end,
     intrusion_detection().
 
-spawn_twin(ProcessPidName, Module, Function, Args, TwinArgs) ->
+% This function spawns:
+% - a main process on this node, wrapped with a process that replicates all environment stimuli;
+% - a twin process on the twin@localhost node, wrapped in a process that unpacks the replicated stimuli and forwards them to the digital twin;
+% and registers both processes in the respective nodes 
+%   to the atom passed as ProcessPidName.
+spawn_twin(ProcessPidName, Module, Args, TwinArgs) ->
     MainTag = lists:flatten(io_lib:format("~p MAIN", [Module])),
     TwinTag = lists:flatten(io_lib:format("~p TWIN", [Module])),
-    spawn_link(Module, Function, [MainTag, Args]),
-    spawn(twin@localhost, Module, Function, [TwinTag, TwinArgs]),
-    Chck = spawn(twin@localhost, sr_twin, check_replicate, [ProcessPidName]),
-    RepMain = spawn_link(fun() -> replicate(ProcessPidName, Chck) end),
+    MainPid = spawn_link(Module, init, [MainTag, Args]),
+    TwinPid = spawn(twin@localhost, Module, init, [TwinTag, TwinArgs]),
+    Chck = spawn(twin@localhost, sr_twin, check_replicate, [TwinPid, ProcessPidName]),
+    RepMain = spawn_link(fun() -> replicate(MainPid, ProcessPidName, Chck) end),
     {RepMain, Chck}.
 
-configure() ->
-    net_kernel:connect_node(mitm@localhost),
-    send_module(mitm@localhost, sr_mitm),
-    net_kernel:connect_node(twin@localhost),
-    lists:foreach(fun(E) -> send_module(twin@localhost, E) end, [sr_belt, sr_pusher, sr_plc, sr_rfid_reader, sr_twin]),
-    ok.
 
-
+% Sets up the environments.
+% 
+% Both the main and twin environment have:
+% - a pusher, informing the intrusion detection process that a candy has been accepted or rejected;
+% - a PLC communicating with the pusher, accepting signals from an HMI in the main environment;
+% - a conveyor belt taking candies to the pusher, accepting candies from a HMI in the main environment;
+% - a RFID reader reading the candies on the belt and communicating with the PLC.
+% 
+% Then a HMI for the MITM process is set up on the mitm@localhost node, and it's configured
+%   between the RFID reader and the belt in the main@localhost node.
 init() ->
     Sink = spawn_link(fun() -> intrusion_detection() end),
-    {PusherMain, PusherTwin} = spawn_twin(pusher_pid, sr_pusher, init, [{sink, Sink}], [{sink, Sink}]),
-    {PLCMain, PLCTwin} = spawn_twin(plc_pid, sr_plc, init, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
-    {BeltMain, BeltTwin} = spawn_twin(belt_pid, sr_belt, init, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
+    {PusherMain, PusherTwin} = spawn_twin(pusher_pid, sr_pusher, [{sink, Sink}], [{sink, Sink}]),
+    {PLCMain, PLCTwin} = spawn_twin(plc_pid, sr_plc, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
+    {BeltMain, BeltTwin} = spawn_twin(belt_pid, sr_belt, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
     MITM = spawn(mitm@localhost, sr_mitm, mitm, []),
-    {RFIDReaderMain, _} = spawn_twin(rfid_reader_pid, sr_rfid_reader, init, [{belt, MITM}, {plc, PLCMain}], [{belt, BeltTwin}, {plc, PLCTwin}]),
+    {RFIDReaderMain, _} = spawn_twin(rfid_reader_pid, sr_rfid_reader, [{belt, MITM}, {plc, PLCMain}], [{belt, BeltTwin}, {plc, PLCTwin}]),
     MITM ! {RFIDReaderMain, BeltMain},
     [{mitm, MITM}, {belt, BeltMain}, {plc, PLCMain}].
 
@@ -122,19 +157,3 @@ simulation(Belt, PLC, MITM) ->
     sr_belt:load_candy(Belt, mou),
     timer:sleep(1000),
     simulation(Belt, PLC, MITM).
-
-% Starts a simulation and returns the reference PID to 
-% the man in the middle. 
-% Injecting packet with `MITM ! {inject_packet, {candy, lemon}}` 
-% will cause the real system to reject a non-lemon candy.
-% The virtual environment will detect the intrusion.
-% Eg.
-%   $ > sh start.sh
-%   Eshell V14.1 (press Ctrl+G to abort, type help(). for help)
-%   1> MITM = id_env:mitm_simulation().
-% now the system will start to log things
-% wait a little and then
-%   2> MITM ! {inject_packet, {candy, lemon}}.
-mitm_simulation() ->
-    {_, _, MITM} = start_simulation(),
-    MITM.

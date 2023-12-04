@@ -1,6 +1,10 @@
 -module(sr_belt).
 -export([read_flavor/1, load_candy/2, init/2]).
 
+% Asks the given belt which candy 
+% is on the belt. Possible results are:
+% - {candy, Flavor};
+% - nothing.
 read_flavor(BeltPid) ->
     Ref = make_ref(),
     BeltPid ! {self(), Ref, read_flavor},
@@ -9,18 +13,19 @@ read_flavor(BeltPid) ->
         {Ref, {candy, Flavor}} -> Flavor
     end.
 
-% load_candy is a stimuli in S (in U* but not in Y*)
+% Loads a candy on the given belt, of the give flavor.
+% This is a stimuli in S (in U* but not in Y*) (must be 
+%   replicated by the twin environment).
 load_candy(BeltPid, Flavor) ->
     BeltPid ! {load_candy, {candy, Flavor}}.
 
 init(LogName, Args) ->
-    register(belt_pid, self()),
     {pusher, PusherPid} = proplists:lookup(pusher, Args),
     belt(LogName, PusherPid, nothing).
 
 % The conveyor belt.
-% This process models a belt that has:
-% - max one candy on it;
+% This process models a belt that:
+% - loads one candy or nothing;
 % - can inform a RFID reader about the flavour of the candy on the belt;
 % - takes the candy to a pusher that decides its fate;
 % - accepts a new candy after dropping the last one.

@@ -38,7 +38,7 @@ Go to the previously opened shell `mitm@localhost`. Run this erlang command:
 MITM ! {inject_packet, {candy, lemon}}.
 ```
 
-This command will overwrite a read from the RFID reader, causing a non-lemon candy
+This command will overwrite the next candy read from the RFID reader, causing a non-lemon candy
 to be rejected. This will be detected by the system and the result can be seen 
 in the log file located in `log/sr.log`.
 
