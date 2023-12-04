@@ -85,10 +85,10 @@ configure() ->
 %   from the twin environment. 
 intrusion_detection() ->
     receive
-    A ->
+    {main, A} ->
         logger:notice("[CANDY SINK ID] Received ~p", [A]),
         receive
-        B ->
+        {twin, B} ->
             case matches(A, B) of
                 true -> ok;
                 false -> logger:error("[CANDY SINK ID] Received ~p to match over ~p, but no match was possible. This is a possible intrusion.", [B, A])
@@ -124,7 +124,7 @@ spawn_twin(ProcessPidName, Module, Args, TwinArgs) ->
 %   between the RFID reader and the belt in the main@localhost node.
 init() ->
     Sink = spawn_link(fun() -> intrusion_detection() end),
-    {PusherMain, PusherTwin} = spawn_twin(pusher_pid, sr_pusher, [{sink, Sink}], [{sink, Sink}]),
+    {PusherMain, PusherTwin} = spawn_twin(pusher_pid, sr_pusher, [{sink, Sink}, {env, main}], [{sink, Sink}, {env, twin}]),
     {PLCMain, PLCTwin} = spawn_twin(plc_pid, sr_plc, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
     {BeltMain, BeltTwin} = spawn_twin(belt_pid, sr_belt, [{pusher, PusherMain}], [{pusher, PusherTwin}]),
     MITM = spawn(mitm@localhost, sr_mitm, mitm, []),
@@ -142,12 +142,12 @@ start_simulation() ->
     {plc, PLC} = proplists:lookup(plc, Env),
     {belt, Belt} = proplists:lookup(belt, Env),
     {mitm, MITM} = proplists:lookup(mitm, Env),
+    timer:sleep(1000),
     spawn_link(fun() -> simulation(Belt, PLC, MITM) end),
-    {PLC, Belt, MITM}.
+    ok.
 
 simulation(Belt, PLC, MITM) ->
-    sr_plc:exclude_flavor(PLC, lemon),
-    timer:sleep(1000),
+    % sr_plc:exclude_flavor(PLC, lemon),
     sr_belt:load_candy(Belt, strawberry),
     timer:sleep(1000),
     sr_belt:load_candy(Belt, orange),

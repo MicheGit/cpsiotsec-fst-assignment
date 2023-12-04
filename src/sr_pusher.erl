@@ -15,10 +15,11 @@ push_candy(PusherPid, {candy, _} = Candy) ->
 
 init(LogName, Args) ->
     {sink, Sink} = proplists:lookup(sink, Args),
-    pusher(LogName, Sink).
+    {env, Env} = proplists:lookup(env, Args),
+    pusher(LogName, Sink, Env).
 
 % Waits for a flavor to exclude (or 'nothing'), then processes the pushed candy.
-pusher(LogName, Sink) ->
+pusher(LogName, Sink, Env) ->
     logger:info("[~p] Starting pusher process, awaiting for signal whether to exclude or include next", [LogName]),
     Reject = receive
         exclude_next -> true;
@@ -28,8 +29,8 @@ pusher(LogName, Sink) ->
     receive
         {candy, _} = Candy ->
             if 
-                Reject -> Sink ! {reject, Candy};
-                true -> Sink ! {accept, Candy}
+                Reject -> Sink ! {Env, {reject, Candy}};
+                true -> Sink ! {Env, {accept, Candy}}
             end
     end,
-    pusher(LogName, Sink).
+    pusher(LogName, Sink, Env).

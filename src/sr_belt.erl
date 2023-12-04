@@ -43,6 +43,7 @@ belt(LogName, PusherPid, Candy) ->
             sr_pusher:push_candy(PusherPid, Candy);
         nothing -> logger:info("[~p] Hello reader! There is no candy on me", [LogName])
     end,
+    timer:sleep(1000), % we assume that a real belt has a way to not having candies too close
     receive
         {load_candy, C} -> 
             logger:info("[~p] Got new Candy = ~p", [LogName, C]),
