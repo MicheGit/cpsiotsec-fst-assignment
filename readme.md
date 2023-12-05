@@ -12,10 +12,16 @@ and also to the mitm node, like this:
 erl -sname mitm@localhost
 ```
 
-Then, run `start.sh`
+Then, run `start.sh` (in linux)
 
 ```Shell
 sh ./start.sh
+```
+
+or its content in Windows:
+
+```
+erl -sname main@localhost -config sr.config -pa ebin/
 ```
 
 Now the program will create the main processes on the current node (called `main`),
@@ -54,7 +60,7 @@ the code for the plc:
 ```
 
 This command will replace the PLC process to a malicious one, which causes to
-reject all the candies regardless of the flavour. The system will detect the
+reject all the candies regardless of the flavour. The system will successfully detect the
 anomaly.
 
 
