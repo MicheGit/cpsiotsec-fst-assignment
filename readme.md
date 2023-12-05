@@ -53,8 +53,8 @@ in the log file located in `log/sr.log`.
 
 To simulate code replacement, start the environment as said above.
 
-Then, from the command line of `main@localhost` tell the Erlang vm to replace
-the code for the plc:
+Then, from the command line of `main@localhost` tell the Erlang runtime to replace
+the code of the running PLC process with a malicious one:
 
 ```ErlangShell
 > c("malicious/sr_plc.erl").
