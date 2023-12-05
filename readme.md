@@ -21,6 +21,7 @@ sh ./start.sh
 or its content in Windows:
 
 ```
+erl -make
 erl -sname main@localhost -config sr.config -pa ebin/
 ```
 
