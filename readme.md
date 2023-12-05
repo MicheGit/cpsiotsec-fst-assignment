@@ -1,4 +1,4 @@
-# Run environment
+# How to run the environment
 
 To start the system, first open an erlang shell on the node twin, like this:
 
