@@ -41,7 +41,7 @@ with the system ready to exclude one lemon candy for simulation cycle.
 Go to the previously opened shell `mitm@localhost`. Run this erlang command:
 
 ```Erlang
-MITM ! {inject_packet, {candy, lemon}}.
+mitm_pid ! {inject_packet, {candy, lemon}}.
 ```
 
 This command will overwrite the next candy read from the RFID reader, causing a non-lemon candy
