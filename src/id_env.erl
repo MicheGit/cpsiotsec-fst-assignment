@@ -34,30 +34,11 @@ replicate(MainPid, TwinPid) ->
     receive
     A -> MainPid ! A, 
         case is_env_stimuli(A) of
-            true -> TwinPid ! {env_stimuli, A}; % if it's a stimuli, replicate
+            true -> TwinPid ! {{env_stimuli, erlang:system_time(millisecond)}, A}; % if it's a stimuli, replicate
             false -> ok
         end
     end,
     replicate(MainPid, TwinPid).
-
-list_find(_, []) -> {nothing, []};
-list_find(Pred, [X|XS]) -> case Pred(X) of
-    true -> {X, XS};
-    false -> 
-        {Y, YS} = list_find(Pred, XS),
-        {Y, [X|YS]}
-    end.
-
-match_queues(Repl, []) -> {none, Repl, []};
-match_queues([], Exp) -> {none, [], Exp};
-match_queues([R|RS], Exp) -> 
-    Result = list_find(fun(E) -> matches(E, R) end, Exp),
-    case Result of
-    {Something, ES} -> {Something, RS, ES};
-    {nothing, Exp} -> 
-        {Smth, RS1, ES} = match_queues(RS, Exp),
-        {Smth, [R|RS1], ES}
-    end.
 
 % Sends a compiled module to an erlang node.
 send_module(Node, Module) ->
